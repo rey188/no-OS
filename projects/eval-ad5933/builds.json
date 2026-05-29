@@ -1,0 +1,12 @@
+{
+  "stm32": {
+    "iio_example": {
+      "flags" : "IIO_EXAMPLE=y"
+    }
+  },
+  "maxim": {
+    "iio_example": {
+      "flags" : "IIO_EXAMPLE=y"
+    }
+  }
+}
