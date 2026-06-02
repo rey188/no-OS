@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------
-#                           ENVIRONMENT VARIABLES                              
+#                           ENVIRONMENT VARIABLES
 #------------------------------------------------------------------------------
 
 TEMP_DIR	= $(BUILD_DIR)/tmp
@@ -10,6 +10,13 @@ TEMP_DIR_RUN = $(PROJECT)/tmp
 FSBL_PATH_RUN	= $(TEMP_DIR_RUN)/output/hw0/export/hw0/sw/hw0/boot/fsbl.elf
 FILE := $(wildcard *.elf)
 comma	:= ,
+
+# Extract Vitis version from XILINX_VITIS env var (set by settings64.sh)
+# e.g. /tools/Xilinx/Vitis/2025.1 -> VITIS_VERSION=2025.1, VITIS_YEAR=2025
+ifneq ($(XILINX_VITIS),)
+VITIS_VERSION := $(shell echo $(XILINX_VITIS) | grep -oP '\d{4}\.\d+')
+VITIS_YEAR := $(shell echo $(VITIS_VERSION) | cut -d. -f1)
+endif
 
 ifeq (y,$(strip $(NETWORKING)))
 TEMPLATE	= "lwIP Echo Server"
@@ -53,7 +60,7 @@ TARGET_CPU ?= 0
 PROJECT_BUILD = $(BUILD_DIR)/app
 
 ################|--------------------------------------------------------------
-################|                   Zynq                                       
+################|                   Zynq
 ################|--------------------------------------------------------------
 ifneq (,$(findstring cortexa9,$(strip $(ARCH))))
 
@@ -76,7 +83,7 @@ LDFLAGS += -specs=$(BUILD_DIR)/app/src/Xilinx.spec 			\
 endif
 
 ################|--------------------------------------------------------------
-################|                   ZynqMP                                     
+################|                   ZynqMP
 ################|--------------------------------------------------------------
 ifneq (,$(findstring cortexa53,$(strip $(ARCH))))
 
@@ -89,7 +96,7 @@ endif
 
 ifneq (,$(findstring cortexr5,$(strip $(ARCH))))
 
-CC := armr5-none-eabi-gcc 
+CC := armr5-none-eabi-gcc
 AR := armr5-none-eabi-ar
 SIZE := armr5-none-eabi-size
 
@@ -106,7 +113,7 @@ LDFLAGS += -mcpu=cortex-r5						\
 endif
 
 ################|--------------------------------------------------------------
-################|                   Versal                                     
+################|                   Versal
 ################|--------------------------------------------------------------
 ifneq (,$(findstring cortexa72,$(strip $(ARCH))))
 
@@ -118,7 +125,7 @@ LD := $(CC)
 endif
 
 ################|--------------------------------------------------------------
-################|                  Microblaze                                  
+################|                  Microblaze
 ################|--------------------------------------------------------------
 ifneq (,$(findstring sys_mb,$(strip $(ARCH))))
 
@@ -155,7 +162,7 @@ LDFLAGS += -Xlinker --defsym=_HEAP_SIZE=0x100000 			\
 	   -mno-xl-soft-mul						\
 	   -mxl-multiply-high 						\
 	   -Wl,--no-relax 						\
-	   -Wl,--gc-sections 
+	   -Wl,--gc-sections
 
 endif
 
@@ -168,8 +175,18 @@ CFLAGS += -I$(BUILD_DIR)/app/src
 CFLAGS		+= -I$(BUILD_DIR)/bsp/$(ARCH)/include
 
 $(PLATFORM)_sdkopen:
+ifeq ($(XILINX_VITIS),)
+	$(error XILINX_VITIS is not set. Please source settings64.sh from your Vitis installation)
+endif
 ifeq '' '$(filter %.hdf, $(HARDWARE))'
+ifeq ($(shell test $(VITIS_YEAR) -ge 2025 && echo y),y)
+	$(MAKE) --no-print-directory vitis_launch_config
+	vitis -w $(PROJECT)
+else ifeq ($(shell test $(VITIS_YEAR) -ge 2023 && echo y),y)
+	vitis -classic -workspace=$(WORKSPACE)
+else
 	vitis -workspace=$(WORKSPACE)
+endif
 else
 	xsdk -workspace=$(WORKSPACE)
 endif
@@ -226,12 +243,38 @@ $(TEMP_DIR)/arch.txt: $(HARDWARE)
 
 PHONY += $(PLATFORM)_sdkbuild
 $(PLATFORM)_sdkbuild:
+ifeq ($(shell test $(VITIS_YEAR) -ge 2025 && echo y),y)
+	$(MAKE) --no-print-directory all
+else
 	xsct -nodisp $(NO-OS)/tools/scripts/platform/xilinx/build_project.tcl $(WORKSPACE) $(HIDE)
+endif
 
 PHONY += $(PLATFORM)_sdkclean
 $(PLATFORM)_sdkclean:
 	$(call print,[Delete] SDK artefacts from $(BUILD_DIR))
 	$(call tcl_util, clean_build) $(HIDE)
+	$(call remove_file, $(BUILD_DIR)/.project.target)
+
+PHONY += vitis_launch_config
+vitis_launch_config: $(TEMP_DIR)/arch.txt
+	@echo "Generating Vitis 2025.1+ debug configuration..."
+	@mkdir -p $(PROJECT)/_ide
+	@echo "Extracting bitstream and initialization files from XSA..."
+	@mkdir -p $(PROJECT)/_ide/$(basename $(notdir $(HARDWARE)))
+	@unzip -q -o $(HARDWARE) '*.bit' -d $(PROJECT)/_ide/$(basename $(notdir $(HARDWARE)))/ 2>/dev/null; \
+	 unzip -q -o $(HARDWARE) '*.pdi' -d $(PROJECT)/_ide/$(basename $(notdir $(HARDWARE)))/ 2>/dev/null; true
+	@unzip -q -o $(HARDWARE) 'psu_init.tcl' -d $(PROJECT)/_ide/$(basename $(notdir $(HARDWARE)))/ 2>/dev/null || \
+	 unzip -q -o $(HARDWARE) 'ps7_init.tcl' -d $(PROJECT)/_ide/$(basename $(notdir $(HARDWARE)))/ 2>/dev/null || \
+	 unzip -q -o $(HARDWARE) 'ps_init.tcl' -d $(PROJECT)/_ide/$(basename $(notdir $(HARDWARE)))/ 2>/dev/null || true
+	@python3 $(NO-OS)/tools/scripts/platform/xilinx/generate_vitis_launch.py \
+		--arch "$(ARCH)" \
+		--project-name "$(PROJECT_NAME)" \
+		--xsa-path "$(notdir $(HARDWARE))" \
+		--elf-path "$(realpath $(BINARY))" \
+		--fsbl-path "$(patsubst $(PROJECT)/%,%,$(FSBL_PATH))" \
+		--project-dir "$(PROJECT)" \
+		--output "$(PROJECT)/_ide/launch.json" \
+		--build-output "$(PROJECT)/_ide/build.json"
 
 $(PLATFORM)_project: $(TEMP_DIR)/arch.txt
 	$(call print,Creating and configuring the IDE project)
@@ -265,14 +308,14 @@ endif
 	$(call copy_file,$(HARDWARE),$(BOOT_BIN_DIR)) $(HIDE)
 	$(call copy_file,$(FSBL_PATH),$(BOOT_BIN_DIR)) $(HIDE)
 	$(call copy_file,$(BINARY),$(BOOT_BIN_DIR)) $(HIDE)
-	tar -czvf $(BUILD_DIR)/bootgen_sysfiles.tar.gz --transform 's/^\(\.\/\|\.\)//' --force-local --exclude 'BOOT.BIN' -C $(BOOT_BIN_DIR) . $(HIDE)
+	tar -czvf $(BUILD_DIR)/bootgen_sysfiles.tar.gz --force-local --exclude 'BOOT.BIN' -C $(BOOT_BIN_DIR) . $(HIDE)
 else
 	$(call print,Creating archive with files)
 	$(call remove_dir,$(BUILD_DIR)/boot_files) $(HIDE)
 	$(call mk_dir,$(BUILD_DIR)/boot_files) $(HIDE)
 	$(call copy_file,$(HARDWARE),$(BUILD_DIR)/boot_files) $(HIDE)
 	$(call copy_file,$(BINARY),$(BUILD_DIR)/boot_files) $(HIDE)
-	tar -czvf $(BUILD_DIR)/bootgen_sysfiles.tar.gz --transform 's/^\(\.\/\|\.\)//' --force-local -C $(BUILD_DIR)/boot_files . $(HIDE)
+	tar -czvf $(BUILD_DIR)/bootgen_sysfiles.tar.gz --force-local -C $(BUILD_DIR)/boot_files . $(HIDE)
 endif
 endif
 

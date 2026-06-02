@@ -5,7 +5,10 @@ SKIPDIR = -path ./platform -prune -o \
 	-path ./rf-transceiver/navassa -prune -o \
 	-path ./adc/ad9081 -prune -o \
 	-path ./rf-transceiver/madura -prune -o	\
-	-path ./net/oa_tc6 -prune -o
+	-path ./rf-transceiver/koror -prune -o	\
+	-path ./rf-transceiver/palma -prune -o	\
+	-path ./net/oa_tc6 -prune -o \
+	-path ./motor/tmc5240 -prune -o
 
 INCLUDES = -I../include/ \
 	 -I../projects/drivers/util/ \

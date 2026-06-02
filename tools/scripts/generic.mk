@@ -144,6 +144,10 @@ ifeq 'mbed' '$(PLATFORM)'
 include $(NO-OS)/tools/scripts/mbed.mk
 endif
 
+ifeq 'lattice' '$(PLATFORM)'
+include $(NO-OS)/tools/scripts/lattice.mk
+endif
+
 ifeq 'win' '$(PLATFORM)'
 include $(NO-OS)/tools/scripts/win.mk
 endif
@@ -172,6 +176,19 @@ include $(NO-OS)/tools/scripts/libraries.mk
 
 ifeq (y,$(strip $(RELEASE)))
 CFLAGS += -O2
+endif
+
+#------------------------------------------------------------------------------
+#                            DEBUG MODE SUPPORT
+#------------------------------------------------------------------------------
+ifeq (1,$(strip $(DEBUG)))
+$(info Building in DEBUG mode: -O0 optimization, full debug symbols)
+# Disable RELEASE mode to prevent -O2 being added
+RELEASE := 0
+# Add debug symbols and path remapping
+CFLAGS += -g3
+CFLAGS += -fdebug-prefix-map=$(BUILD_DIR)/app/$(PROJECT_NAME)=$(PROJECT)
+# Note: -O0 is added in pre_build after filtering out other -O flags
 endif
 
 ifeq (y,$(strip $(NETWORKING)))
@@ -207,17 +224,10 @@ ASM_SRCS := $(filter-out $(ALL_IGNORED_FILES),$(ASM_SRCS))
 FILES_OUT_OF_DIRS := $(filter-out $(foreach source_directory_name,$(sort $(SRC_DIRS)),$(wildcard $(source_directory_name)/*)),$(SRCS) $(INCS) $(ASM_SRCS))
 
 REL_SRCS = $(addprefix $(OBJECTS_DIR)/,$(call get_relative_path,$(SRCS_IN_BUILD) $(PLATFORM_SRCS)))
-OBJS = $(patsubst %.cpp,%.o,$(patsubst %.c,%.o,$(REL_SRCS)))
+OBJS = $(patsubst %.cpp,%.cpp.o,$(patsubst %.c,%.c.o,$(REL_SRCS)))
 
 REL_ASM_SRCS = $(addprefix $(OBJECTS_DIR)/,$(call get_relative_path,$(ASM_SRCS)))
-ASM_OBJS_s = $(REL_ASM_SRCS:.s=.o)
-ifneq ($(REL_ASM_SRCS),$(ASM_OBJS_s))
-	ASM_OBJS += $(ASM_OBJS_s)
-endif
-ASM_OBJS_S = $(REL_ASM_SRCS:.S=.o)
-ifneq ($(REL_ASM_SRCS),$(ASM_OBJS_S))
-	ASM_OBJS += $(ASM_OBJS_S)
-endif
+ASM_OBJS = $(patsubst %.s,%.s.o,$(patsubst %.S,%.S.o,$(REL_ASM_SRCS)))
 
 # Will be used to add these flags to sdk project
 FLAGS_WITHOUT_D = $(sort $(subst -D,,$(filter -D%, $(CFLAGS))))
@@ -291,19 +301,19 @@ $(OBJECTS_DIR)%/.:
 
 # Build .c files into .o files.
 .SECONDEXPANSION:
-$(OBJECTS_DIR)/%.o: $$(call get_full_path, %).c | $$(@D)/.
+$(OBJECTS_DIR)/%.c.o: $$(call get_full_path, %).c | $$(@D)/.
 	$(call print,[CC] $(notdir $<))
 	$(CC) -c @$(CFLAGS_FILE) $< -o $@
 
-$(OBJECTS_DIR)/%.o: $$(call get_full_path, %).cpp | $$(@D)/.
+$(OBJECTS_DIR)/%.cpp.o: $$(call get_full_path, %).cpp | $$(@D)/.
 	$(call print,[CPP] $(notdir $<))
 	$(CPP) -c @$(CPPFLAGS_FILE) $< -o $@
 
-$(OBJECTS_DIR)/%.o: $$(call get_full_path, %).s | $$(@D)/. 
+$(OBJECTS_DIR)/%.s.o: $$(call get_full_path, %).s | $$(@D)/.
 	$(call print,[AS] $(notdir $<))
 	$(AS) -c @$(ASFLAGS_FILE) $< -o $@
 
-$(OBJECTS_DIR)/%.o: $$(call get_full_path, %).S | $$(@D)/. 
+$(OBJECTS_DIR)/%.S.o: $$(call get_full_path, %).S | $$(@D)/.
 	$(call print,[AS] $(notdir $<))
 	$(AS) -c @$(ASFLAGS_FILE) $< -o $@
 
@@ -344,7 +354,11 @@ endef
 PHONY += pre_build
 pre_build:
 	$(call print,Generating build flags)
+ifeq (1,$(strip $(DEBUG)))
+	$(call generate_flags_file,$(CFLAGS_FILE),$(filter-out -O0 -O1 -O2 -O3 -Os -Og,$(CFLAGS)) -O0,generate_cflags_func)
+else
 	$(call generate_flags_file,$(CFLAGS_FILE),$(CFLAGS),generate_cflags_func)
+endif
 	$(call generate_flags_file,$(CPPFLAGS_FILE),$(CPPFLAGS),generate_cppflags_func)
 	$(call generate_flags_file,$(ASFLAGS_FILE),$(ASFLAGS),generate_asflags_func)
 	$(call generate_flags_file,$(OBJS_FILE),$(OBJS),generate_objs_func)

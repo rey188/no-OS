@@ -1385,7 +1385,7 @@ int adrv9009_setup(struct adrv9009_rf_phy *phy)
 	}
 
 	/* Initialize clk components */
-	rx_sample_clk = no_os_calloc(1, sizeof(rx_sample_clk));
+	rx_sample_clk = no_os_calloc(1, sizeof(*rx_sample_clk));
 	if (!rx_sample_clk)
 		goto error;
 
@@ -1400,7 +1400,7 @@ int adrv9009_setup(struct adrv9009_rf_phy *phy)
 
 	phy->clks[RX_SAMPL_CLK] = rx_sample_clk;
 
-	orx_sample_clk = no_os_calloc(1, sizeof(orx_sample_clk));
+	orx_sample_clk = no_os_calloc(1, sizeof(*orx_sample_clk));
 	if (!orx_sample_clk)
 		goto rx_out_clk_init_error;
 
@@ -1415,7 +1415,7 @@ int adrv9009_setup(struct adrv9009_rf_phy *phy)
 
 	phy->clks[OBS_SAMPL_CLK] = orx_sample_clk;
 
-	tx_sample_clk = no_os_calloc(1, sizeof(tx_sample_clk));
+	tx_sample_clk = no_os_calloc(1, sizeof(*tx_sample_clk));
 	if (!tx_sample_clk)
 		goto orx_out_clk_init_error;
 
@@ -1434,7 +1434,7 @@ int adrv9009_setup(struct adrv9009_rf_phy *phy)
 	TALISE_getApiVersion(phy->talDevice,
 			     &api_vers[0], &api_vers[1], &api_vers[2], &api_vers[3]);
 
-	pr_info("Talise: Device Revision %d, API %lu.%lu.%lu.%lu\n",
+	pr_info("Talise: Device Revision %d, API %u.%u.%u.%u\n",
 		rev, api_vers[0], api_vers[1], api_vers[2], api_vers[3]);
 
 	/* Close Talise Hw Device*/

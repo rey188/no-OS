@@ -40,8 +40,13 @@
 #ifdef IIO_SUPPORT
 #define INTC_DEVICE_ID	0
 #endif
+#if (TARGET_NUM == 78000)
+#define UART_IRQ_ID	UART0_IRQn
+#define UART_DEVICE_ID	0
+#else
 #define UART_IRQ_ID	UART1_IRQn
 #define UART_DEVICE_ID	1
+#endif
 #define UART_BAUDRATE	115200
 #define UART_OPS	&max_uart_ops
 #define UART_EXTRA      &max_uart_extra

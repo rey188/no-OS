@@ -2,7 +2,7 @@
 *   @file    AD717X.c
 *   @brief   AD717X implementation file.
 *   	     Devices: AD7172-2, AD7172-4, AD7173-8, AD7175-2, AD7175-8, AD7176-2
-*            AD7177-2, AD4111, AD4112, AD4114, AD4115, AD4116
+*            AD7177-2, AD4111, AD4112, AD4113, AD4114, AD4115, AD4116
 *   @author  acozma (andrei.cozma@analog.com)
 *            dnechita (dan.nechita@analog.com)
 *
@@ -133,6 +133,7 @@ int ad717x_connect_analog_input(ad717x_dev *device, uint8_t channel_id,
 	switch ((uint8_t)device->active_device) {
 	case ID_AD4111 :
 	case ID_AD4112 :
+	case ID_AD4113 :
 	case ID_AD4114 :
 	case ID_AD4115 :
 	case ID_AD4116 :
@@ -289,15 +290,15 @@ int ad717x_set_reference_source(ad717x_dev* device,
 }
 
 /***************************************************************************//**
- * @brief Enable Input Buffer
+ * @brief Enable input and reference buffers
  * @param device - AD717x Device Descriptor
  * @param inbuf_en - Enable Inpur Buffer
  * @param refbuf_en - Enable referece Buffer
  * @param setup_id - Setup ID (Number)
  * @return Returns 0 for success or negative error code in case of failure.
 ******************************************************************************/
-int ad717x_enable_input_buffer(ad717x_dev* device,
-			       bool inbuf_en, bool refbuf_en, uint8_t setup_id)
+int ad717x_enable_buffers(ad717x_dev* device,
+			  bool inbuf_en, bool refbuf_en, uint8_t setup_id)
 {
 	ad717x_st_reg* setup_reg;
 
@@ -633,7 +634,10 @@ int32_t AD717X_ComputeDataregSize(ad717x_dev *device)
 				     AD717X_IFMODE_REG_DATA_WL16);
 
 	/* Compute data register size */
-	datareg_ptr->size = 3;
+	if (device->active_device == ID_AD4113)
+		datareg_ptr->size = 2;
+	else
+		datareg_ptr->size = 3;
 	if ((case_var & AD717X_IFMODE_REG_DATA_WL16) == AD717X_IFMODE_REG_DATA_WL16)
 		datareg_ptr->size--;
 	if ((case_var & AD717X_IFMODE_REG_DATA_STAT) == AD717X_IFMODE_REG_DATA_STAT)
@@ -759,6 +763,7 @@ int32_t ad717x_configure_device_odr(ad717x_dev *dev,
 	if (ret) {
 		return ret;
 	}
+	dev->filter_configuration[filtcon_id].odr = odr_sel;
 
 	return 0;
 }
@@ -851,10 +856,10 @@ int32_t AD717X_Init(ad717x_dev **device,
 			return ret;
 
 		/* Enable reference and input buffers */
-		ret = ad717x_enable_input_buffer(dev,
-						 init_param.setups[setup_index].input_buff,
-						 init_param.setups[setup_index].ref_buff,
-						 setup_index);
+		ret = ad717x_enable_buffers(dev,
+					    init_param.setups[setup_index].input_buff,
+					    init_param.setups[setup_index].ref_buff,
+					    setup_index);
 		if (ret < 0)
 			return ret;
 

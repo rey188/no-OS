@@ -2,7 +2,7 @@
 *   @file    AD717X.h
 *   @brief   AD717X header file.
 *   	     Devices: AD7172-2, AD7172-4, AD7173-8, AD7175-2, AD7175-8, AD7176-2,
-*            AD7177-2, AD4111, AD4112, AD4114, AD4115, AD4116
+*            AD7177-2, AD4111, AD4112, AD4113, AD4114, AD4115, AD4116
 *   @author  acozma (andrei.cozma@analog.com)
 *            dnechita (dan.nechita@analog.com)
 *******************************************************************************
@@ -92,6 +92,30 @@ enum ad717x_analog_input_pairs {
 	VIN6_VINCOM = 0xD0,
 	VIN7_VIN6 = 0xE6,
 	VIN7_VINCOM = 0xF0,
+	VIN8_VIN9 = 0x109,
+	VIN8_VINCOM = 0x110,
+	VIN9_VIN8 = 0x128,
+	VIN9_VINCOM = 0x130,
+	VIN10_VIN11 = 0x14B,
+	VIN10_VINCOM = 0x150,
+	VIN11_VIN10 = 0x16A,
+	VIN11_VINCOM = 0x170,
+	VIN12_VIN13 = 0x18D,
+	VIN12_VINCOM = 0x190,
+	VIN13_VIN12 = 0x1AC,
+	VIN13_VINCOM = 0x1B0,
+	VIN14_VIN15 = 0x1CF,
+	VIN14_VINCOM = 0x1D0,
+	VIN15_VIN14 = 0x1EE,
+	VIN15_VINCOM = 0x1F0,
+	ADCIN11_ADCIN12 = 0x16C,
+	ADCIN12_ADCIN11 = 0x18B,
+	ADCIN13_ADCIN14 = 0x1AE,
+	ADCIN14_ADCIN13 = 0x1CD,
+	ADCIN11_ADCIN15 = 0x16F,
+	ADCIN12_ADCIN15 = 0x18F,
+	ADCIN13_ADCIN15 = 0x1AF,
+	ADCIN14_ADCIN15 = 0x1CF,
 	IIN3P_IIN3M = 0x18B,
 	IIN2P_IIN2M = 0x1AA,
 	IIN1P_IIN1M = 0x1C9,
@@ -110,6 +134,18 @@ enum ad717x_analog_input {
 	AIN2 = 0x2,
 	AIN3 = 0x3,
 	AIN4 = 0x4,
+	AIN5 = 0x5,
+	AIN6 = 0x6,
+	AIN7 = 0x7,
+	AIN8 = 0x8,
+	AIN9 = 0x9,
+	AIN10 = 0xA,
+	AIN11 = 0xB,
+	AIN12 = 0xC,
+	AIN13 = 0xD,
+	AIN14 = 0xE,
+	AIN15 = 0xF,
+	AIN16 = 0x10,
 	TEMP_SENSOR_P = 0x11,
 	TEMP_SENSOR_M = 0x12,
 	AVDD_AVSS_P = 0x13,
@@ -137,6 +173,7 @@ union ad717x_analog_inputs {
 enum ad717x_device_type {
 	ID_AD4111,
 	ID_AD4112,
+	ID_AD4113,
 	ID_AD4114,
 	ID_AD4115,
 	ID_AD4116,
@@ -492,8 +529,8 @@ typedef struct {
 #define AD7177_2_ID_REG_VALUE 0x4FD0
 /* AD4111, AD4112 IDs */
 #define AD411X_ID_REG_VALUE   0x30D0
-/* AD4114, AD4115 IDs */
-#define AD4114_5_ID_REG_VALUE   0x31D0
+/* AD4113, AD4114, AD4115 IDs */
+#define AD4113_4_5_ID_REG_VALUE   0x31D0
 /* AD4116 ID */
 #define AD4116_ID_REG_VALUE   0x34D0
 

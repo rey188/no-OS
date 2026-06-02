@@ -112,7 +112,6 @@ int main()
 #endif
 	struct no_os_spi_desc *spi_eng_desc;
 	struct spi_engine_init_param spi_eng_init_param  = {
-		.type = SPI_ENGINE,
 		.spi_engine_baseaddr = CN0561_SPI_ENGINE_BASEADDR,
 		.cs_delay = 0,
 		.data_width = 32,
@@ -170,6 +169,7 @@ int main()
 	cn0561_init_param.gpio_mode = NULL;
 	cn0561_init_param.gpio_resetn = NULL;
 #endif
+	cn0561_init_param.gpio_cs_sync = NULL;
 	cn0561_init_param.mode_master_nslave = false;
 	cn0561_init_param.dclkmode_free_ngated = false;
 	cn0561_init_param.dclkio_out_nin = false;

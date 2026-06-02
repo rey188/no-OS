@@ -3,8 +3,9 @@
  *   @brief  Implementation of iio.
  *   @author Cristian Pop (cristian.pop@analog.com)
  *   @author Mihail Chindris (mihail.chindris@analog.com)
+ *   @author Vilmos-Csaba Jozsa (vilmoscsaba.jozsa@analog.com)
 ********************************************************************************
- * Copyright 2019(c) Analog Devices, Inc.
+ * Copyright 2019-2026(c) Analog Devices, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -69,17 +70,18 @@
 
 static char uart_buff[IIOD_CONN_BUFFER_SIZE];
 
-static char header[] =
+static const char header[] =
 	"<?xml version=\"1.0\" encoding=\"utf-8\"?>"
 	"<!DOCTYPE context ["
 	"<!ELEMENT context (device | context-attribute)*>"
 	"<!ELEMENT context-attribute EMPTY>"
-	"<!ELEMENT device (channel | attribute | debug-attribute | buffer-attribute)*>"
+	"<!ELEMENT device (channel | attribute | debug-attribute | buffer-attribute | buffer)*>"
 	"<!ELEMENT channel (scan-element?, attribute*)>"
 	"<!ELEMENT attribute EMPTY>"
 	"<!ELEMENT scan-element EMPTY>"
 	"<!ELEMENT debug-attribute EMPTY>"
 	"<!ELEMENT buffer-attribute EMPTY>"
+	"<!ELEMENT buffer (attribute)*>"
 	"<!ATTLIST context name CDATA #REQUIRED description CDATA #IMPLIED>"
 	"<!ATTLIST context-attribute name CDATA #REQUIRED value CDATA #REQUIRED>"
 	"<!ATTLIST device id CDATA #REQUIRED name CDATA #IMPLIED>"
@@ -88,11 +90,12 @@ static char header[] =
 	"<!ATTLIST attribute name CDATA #REQUIRED filename CDATA #IMPLIED>"
 	"<!ATTLIST debug-attribute name CDATA #REQUIRED>"
 	"<!ATTLIST buffer-attribute name CDATA #REQUIRED>"
+	"<!ATTLIST buffer index CDATA #REQUIRED>"
 	"]>"
 	"<context name=\"xml\" description=\"no-OS/projects/"
 	NO_OS_TOSTRING(NO_OS_PROJECT)" "
 	NO_OS_TOSTRING(NO_OS_VERSION)"\" >";
-static char header_end[] = "</context>";
+static const char header_end[] = "</context>";
 
 static const char * const iio_chan_type_string[] = {
 	[IIO_VOLTAGE] = "voltage",
@@ -1733,12 +1736,29 @@ static uint32_t iio_generate_device_xml(struct iio_device *device, char *name,
 		i += snprintf(buff + i, no_os_max(n - i, 0),
 			      "<debug-attribute name=\""REG_ACCESS_ATTRIBUTE"\" />");
 
-	/* Write buffer attributes */
-	if (device->buffer_attributes)
-		for (j = 0; device->buffer_attributes[j].name; j++)
+	/*
+	 * Write buffer element (required by libiio v1.x to create buffer).
+	 * buffer_attributes, if set, are emitted as <attribute> children of
+	 * <buffer index="0">.  Devices that have buffer_attributes but none of
+	 * the DMA callbacks below do not receive a <buffer> element; no such
+	 * device exists in-tree (all set buffer_attributes = NULL).
+	 */
+	if (device->read_dev || device->write_dev || device->submit ||
+	    device->trigger_handler) {
+		if (device->buffer_attributes) {
 			i += snprintf(buff + i, no_os_max(n - i, 0),
-				      "<buffer-attribute name=\"%s\" />",
-				      device->buffer_attributes[j].name);
+				      "<buffer index=\"0\">");
+			for (j = 0; device->buffer_attributes[j].name; j++)
+				i += snprintf(buff + i, no_os_max(n - i, 0),
+					      "<attribute name=\"%s\" />",
+					      device->buffer_attributes[j].name);
+			i += snprintf(buff + i, no_os_max(n - i, 0),
+				      "</buffer>");
+		} else {
+			i += snprintf(buff + i, no_os_max(n - i, 0),
+				      "<buffer index=\"0\" />");
+		}
+	}
 
 	i += snprintf(buff + i, no_os_max(n - i, 0), "</device>");
 
@@ -1849,6 +1869,10 @@ static int32_t iio_init_trigs(struct iio_desc *desc,
 	struct iio_trigger_init *trig_init_iter;
 
 	desc->nb_trigs = n;
+	if (n == 0) {
+		desc->trigs = NULL;
+		return 0;
+	}
 	desc->trigs = (struct iio_trig_priv *)no_os_calloc(desc->nb_trigs,
 			sizeof(*desc->trigs));
 	if (!desc->trigs)

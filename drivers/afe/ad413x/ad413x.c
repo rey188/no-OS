@@ -400,6 +400,9 @@ int32_t ad413x_set_ch_preset(struct ad413x_dev *dev, uint8_t ch_nb,
 {
 	int32_t ret;
 
+	if (ch_nb >= NO_OS_ARRAY_SIZE(dev->ch))
+		return -EINVAL;
+
 	ret = ad413x_reg_write_msk(dev,
 				   AD413X_REG_CHN(ch_nb),
 				   AD413X_SETUP_M(preset_nb),
@@ -428,6 +431,9 @@ int32_t ad413x_ch_exc_input(struct ad413x_dev *dev, uint8_t ch_nb,
 {
 	int32_t ret;
 
+	if (ch_nb >= NO_OS_ARRAY_SIZE(dev->ch))
+		return -EINVAL;
+
 	ret = ad413x_reg_write_msk(dev,
 				   AD413X_REG_CHN(ch_nb),
 				   AD413X_I_OUT0_CH_M(iout0_exc_inp) |
@@ -455,6 +461,9 @@ int32_t ad413x_ch_en(struct ad413x_dev *dev, uint8_t ch_nb, uint8_t enable)
 {
 	int32_t ret;
 
+	if (ch_nb >= NO_OS_ARRAY_SIZE(dev->ch))
+		return -EINVAL;
+
 	ret = ad413x_reg_write_msk(dev,
 				   AD413X_REG_CHN(ch_nb),
 				   enable ? AD413X_ENABLE_M : 0x0U,
@@ -479,6 +488,9 @@ int32_t ad413x_ch_en(struct ad413x_dev *dev, uint8_t ch_nb, uint8_t enable)
 int32_t ad413x_pdsw_en(struct ad413x_dev *dev, uint8_t ch_nb, bool pdsw_en)
 {
 	int32_t ret;
+
+	if (ch_nb >= NO_OS_ARRAY_SIZE(dev->ch))
+		return -EINVAL;
 
 	ret = ad413x_reg_write_msk(dev,
 				   AD413X_REG_CHN(ch_nb),
@@ -831,7 +843,7 @@ int32_t ad413x_continuous_conv(struct ad413x_dev *dev, uint32_t *buffer,
 			if (ret)
 				timeout = 0;
 			timeout--;
-		} while (pin_val);// && timeout);
+		} while (pin_val && timeout);
 		if (timeout) {
 			ret = ad413x_reg_read(dev, AD413X_REG_DATA, ctx.buffer);
 			if (ret)
@@ -923,22 +935,22 @@ int32_t ad413x_init(struct ad413x_dev **device,
 	/* RDY pin */
 	ret = no_os_gpio_get(&dev->rdy_pin_desc, init_param.rdy_pin_init);
 	if (ret)
-		goto err_dev;
+		goto err_spi;
 
 	/* Enable the input direction of the specified GPIO. */
 	ret = no_os_gpio_direction_input(dev->rdy_pin_desc);
 	if (ret)
-		goto err_dev;
+		goto err_gpio;
 
 	/* Device Settings */
 	ret = ad413x_do_soft_reset(dev);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	/* Reset POR flag */
 	ret = ad413x_reg_read(dev, AD413X_REG_STATUS, &reg_data);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	/* Change SPI to 4 wire*/
 	ret = ad413x_reg_write_msk(dev,
@@ -946,25 +958,25 @@ int32_t ad413x_init(struct ad413x_dev **device,
 				   AD413X_ADC_CSB_EN,
 				   AD413X_ADC_CSB_EN);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	ret = ad413x_reg_read(dev, AD413X_REG_ID, &reg_data);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	switch (dev->chip_id) {
 	case AD4130_8:
 		if (reg_data != AD4130_8) {
-			goto err_spi;
+			goto err_gpio;
 		}
 		break;
 	default:
-		goto err_spi;
+		goto err_gpio;
 	}
 
 	ret = ad413x_set_adc_mode(dev, AD413X_STANDBY_MODE);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	if (init_param.spi_crc_en) {
 		ret = ad413x_reg_write_msk(dev,
@@ -972,7 +984,7 @@ int32_t ad413x_init(struct ad413x_dev **device,
 					   AD413X_SPI_CRC_ERR_EN,
 					   AD413X_SPI_CRC_ERR_EN);
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 		dev->spi_crc_en = init_param.spi_crc_en;
 	}
 
@@ -980,21 +992,21 @@ int32_t ad413x_init(struct ad413x_dev **device,
 	for (i = 0; i < 8; i++) {
 		ret = ad413x_preset_store(dev, init_param.preset[i], i);
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 	}
 
 	/* Channel setup */
 	for (i = 0; i < 16; i++) {
 		ret = ad413x_set_ch_preset(dev, i, init_param.ch[i].preset);
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 
 		ret = ad413x_reg_write_msk(dev,
 					   AD413X_REG_CHN(i),
 					   AD413X_AINP_M(init_param.ch[i].ain_p),
 					   AD413X_AINP_M(0xFF));
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 		dev->ch[i].ain_p = init_param.ch[i].ain_p;
 
 		ret = ad413x_reg_write_msk(dev,
@@ -1002,52 +1014,54 @@ int32_t ad413x_init(struct ad413x_dev **device,
 					   AD413X_AINM_M(init_param.ch[i].ain_m),
 					   AD413X_AINM_M(0xFF));
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 		dev->ch[i].ain_m = init_param.ch[i].ain_m;
 
 		ret = ad413x_ch_exc_input(dev, i, init_param.ch[i].iout0_exc_input,
 					  init_param.ch[i].iout1_exc_input);
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 
 		ret = ad413x_pdsw_en(dev, i, init_param.ch[i].pdsw_en);
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 
 		ret = ad413x_ch_en(dev, i, init_param.ch[i].enable);
 		if (ret)
-			goto err_spi;
+			goto err_gpio;
 	}
 
 	ret = ad413x_set_int_ref(dev, init_param.int_ref);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	ret = ad413x_adc_bipolar(dev, init_param.bipolar);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	ret = ad413x_set_v_bias(dev, init_param.v_bias);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	ret = ad413x_set_standby_ctrl(dev, init_param.standby_ctrl);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	ret = ad413x_set_mclk(dev, init_param.mclk);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	ret = ad413x_data_stat_en(dev, init_param.data_stat);
 	if (ret)
-		goto err_spi;
+		goto err_gpio;
 
 	*device = dev;
 
 	pr_info("AD413X successfully initialized\n");
 	return 0;
 
+err_gpio:
+	no_os_gpio_remove(dev->rdy_pin_desc);
 err_spi:
 	no_os_spi_remove(dev->spi_dev);
 err_dev:

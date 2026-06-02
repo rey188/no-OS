@@ -20,6 +20,22 @@ ADC / DAC
    
    projects/adc-dac/*
 
+ACCELEROMETERS
+==============
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   projects/accel/*
+
+ANALOG FRONT-ENDS
+=================
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   projects/afe/*
+
 FREQUENCY GENERATORS
 ====================
 .. toctree::
@@ -35,6 +51,14 @@ INERTIAL MEASUREMENT UNITS
    :glob:
 
    projects/imu/*
+
+NET
+===
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   projects/net/*
 
 METER
 =====
@@ -100,6 +124,14 @@ GYROSCOPES
 
    projects/gyroscope/*
 
+CAPACITANCE-TO-DIGITAL CONVERTER
+=================================
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   projects/cdc/*
+
 LED
 ===
 .. toctree::
@@ -107,3 +139,19 @@ LED
    :glob:
 
    projects/led/*
+
+POSITION
+==============
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   projects/position/*
+
+EXAMPLES
+========
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   projects/examples/*

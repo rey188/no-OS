@@ -60,6 +60,22 @@ DIGITAL TO ANALOG CONVERTERS
 
    drivers/dac/*
 
+ECG
+===
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   drivers/ecg/*
+
+FILTER
+======
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   drivers/filter/*
+
 FREQUENCY GENERATORS
 ====================
 .. toctree::
@@ -67,6 +83,14 @@ FREQUENCY GENERATORS
    :glob:
 
    drivers/frequency/*
+
+GNSS-GPS
+========
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   drivers/gnss-gps/*
 
 INERTIAL MEASUREMENT UNITS
 ==========================
@@ -91,6 +115,14 @@ LED
 
    drivers/led/*
 
+MCS
+===
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   drivers/mcs/*
+
 METER
 =====
 .. toctree::
@@ -99,6 +131,14 @@ METER
 
    drivers/meter/*
 
+MOTOR
+=====
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   drivers/motor/*
+
 MUX
 ===
 .. toctree::
@@ -106,6 +146,14 @@ MUX
    :glob:
 
    drivers/mux/*
+
+POSITION
+========
+.. toctree::
+   :maxdepth: 1
+   :glob:
+
+   drivers/position/*
 
 RF TRANSCEIVER
 ==============

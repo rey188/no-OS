@@ -67,6 +67,10 @@ int ltc2983_init(struct ltc2983_desc **device,
 	case ID_LTC2986:
 		descriptor->max_channels_nr = 10;
 		break;
+	case ID_ADT7604:
+		descriptor->max_channels_nr = 20;
+		descriptor->has_copper_trace = true;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -251,6 +255,17 @@ int ltc2983_setup(struct ltc2983_desc *device)
 		if (!device->sensors[i])
 			continue;
 
+		if (device->has_copper_trace) {
+			uint8_t t = device->sensors[i]->type;
+			if ((t >= LTC2983_THERMOCOUPLE_J &&
+			     t <= LTC2983_THERMOCOUPLE_CUSTOM) ||
+			    t == LTC2983_DIODE ||
+			    t == LTC2983_DIRECT_ADC) {
+				pr_err("Sensor type %u not supported on ADT7604\n", t);
+				return -EINVAL;
+			}
+		}
+
 		switch (device->sensors[i]->type) {
 		case LTC2983_THERMOCOUPLE_J:
 		case LTC2983_THERMOCOUPLE_K:
@@ -308,18 +323,61 @@ int ltc2983_setup(struct ltc2983_desc *device)
 }
 
 /**
+ * @brief Read raw resistance from the ADT7604 resistance result bank (0x0060)
+ * @param device - LTC2983 descriptor
+ * @param chan - channel number (1-indexed)
+ * @param val - raw resistance value (bits[30:0], unsigned)
+ * @return 0 in case of success, errno errors otherwise
+ */
+int ltc2983_chan_read_resistance(struct ltc2983_desc *device, const int chan,
+				 uint32_t *val)
+{
+	uint32_t start_conversion = 0;
+	uint8_t raw_array[7];
+	int ret;
+
+	start_conversion = LTC2983_STATUS_START(true);
+	start_conversion |= LTC2983_STATUS_CHAN_SEL(chan);
+	ret = ltc2983_reg_write(device, LTC2983_STATUS_REG, start_conversion);
+	if (ret)
+		return ret;
+
+	/* wait for conversion to complete */
+	no_os_mdelay(300);
+
+	raw_array[0] = LTC2983_SPI_READ_BYTE;
+	no_os_put_unaligned_be16(ADT7604_RES_RES_ADDR(chan), raw_array + 1);
+	no_os_put_unaligned_be32(0, raw_array + 3);
+	ret = no_os_spi_write_and_read(device->comm_desc, raw_array,
+				       NO_OS_ARRAY_SIZE(raw_array));
+	if (ret)
+		return ret;
+
+	/* Resistance result: plain unsigned, no valid bit, no fault bits */
+	*val = no_os_get_unaligned_be32(raw_array + 3) & NO_OS_GENMASK(30, 0);
+
+	return 0;
+}
+
+/**
  * @brief Read channel data / temperature
  * @param device - LTC2983 descriptor
  * @param chan - channel number
  * @param val - channel data / temperature
  * @return 0 in case of success, errno errors otherwise
+ *
+ * For copper trace (LTC2983_RTD_CUSTOM) and leak detector
+ * (LTC2983_THERMISTOR_CUSTOM) channels, use ltc2983_chan_read_resistance()
+ * to read raw resistance from the ADT7604 resistance bank. The IIO resistance
+ * scales (1/1024000 Ohm/LSB for copper trace, 1/1024 Ohm/LSB for leak
+ * detector) cause precision loss in integer arithmetic.
  */
 int ltc2983_chan_read(struct ltc2983_desc *device, const int chan, int *val)
 {
 	uint32_t raw_val, scale_val, scale_val2;
 	int ret;
 
-	if (device->sensors[chan]->type == LTC2983_RSENSE) {
+	if (device->sensors[chan - 1]->type == LTC2983_RSENSE) {
 		*val = -1;
 		return 0;
 	}
@@ -328,7 +386,7 @@ int ltc2983_chan_read(struct ltc2983_desc *device, const int chan, int *val)
 	if (ret)
 		return ret;
 
-	ltc2983_chan_read_scale(device, chan, &scale_val, &scale_val2);
+	ret = ltc2983_chan_read_scale(device, chan, &scale_val, &scale_val2);
 	if (ret)
 		return ret;
 
@@ -376,7 +434,7 @@ int ltc2983_chan_read_raw(struct ltc2983_desc *device, const int chan,
 		return -EIO;
 	}
 
-	if (device->sensors[chan]->type <= LTC2983_THERMOCOUPLE_CUSTOM)
+	if (device->sensors[chan - 1]->type <= LTC2983_THERMOCOUPLE_CUSTOM)
 		ret = ltc2983_thermocouple_fault_handler(*val);
 	else
 		ret = ltc2983_common_fault_handler(*val);
@@ -399,7 +457,7 @@ int ltc2983_chan_read_raw(struct ltc2983_desc *device, const int chan,
 int ltc2983_chan_read_scale(struct ltc2983_desc *device, const int chan,
 			    uint32_t *val, uint32_t *val2)
 {
-	if (device->sensors[chan]->type == LTC2983_DIRECT_ADC) {
+	if (device->sensors[chan - 1]->type == LTC2983_DIRECT_ADC) {
 		/* value in millivolt */
 		*val = 1000;
 		/* 2^21 */
@@ -408,6 +466,32 @@ int ltc2983_chan_read_scale(struct ltc2983_desc *device, const int chan,
 		/* value in milli degrees */
 		*val = 1000;
 		/* 2^10 */
+		*val2 = 1024;
+	}
+	return 0;
+}
+
+/**
+ * @brief Get resistance scale for copper trace or leak detector channels
+ * @param device - LTC2983 descriptor
+ * @param chan - channel number
+ * @param val - scale numerator
+ * @param val2 - scale denominator
+ * @return 0 in case of success, errno errors otherwise
+ */
+int ltc2983_chan_read_scale_resistance(struct ltc2983_desc *device,
+				       const int chan,
+				       uint32_t *val, uint32_t *val2)
+{
+	uint8_t type = device->sensors[chan - 1]->type;
+
+	if (type == LTC2983_RTD_CUSTOM) {
+		/* ADT7604 copper trace: 1/1024 mΩ per LSB → 1/1024000 Ω per LSB */
+		*val = 1;
+		*val2 = 1024000;
+	} else {
+		/* ADT7604 leak detector: 1/1024 Ω per LSB */
+		*val = 1;
 		*val2 = 1024;
 	}
 	return 0;
@@ -448,30 +532,42 @@ static int __ltc2983_chan_custom_sensor_assign(struct ltc2983_desc *device,
 		struct ltc2983_custom_sensor *custom,
 		uint32_t *chan_val)
 {
-	int ret;
-	uint32_t i;
-	uint8_t raw_array[6];
+	uint8_t raw_array[3 + LTC2983_CUST_SENS_TBL_SIZE];
+	/* Steinhart: 4-byte coefficients; resistance/temp pairs: 3 bytes each */
 	uint8_t step = custom->is_steinhart ? 4 : 3;
+	/* An addressable unit in CUSTOM_ADDR is one pair (R+T) for non-Steinhart */
+	uint8_t entry_size = custom->is_steinhart ? step : step * 2;
+	size_t data_len = (size_t)custom->len * step;
+	uint32_t i;
 
-	if (device->custom_addr_ptr + (custom->len * step) >
-	    LTC2983_CUST_SENS_TBL_SIZE)
+	if (device->custom_addr_ptr + data_len > LTC2983_CUST_SENS_TBL_SIZE)
 		return -EINVAL;
 
-	*chan_val |= LTC2983_CUSTOM_LEN(custom->len - 1);
-	*chan_val |= LTC2983_CUSTOM_ADDR(device->custom_addr_ptr);
+	/*
+	 * CUSTOM_LEN: number of pairs minus 1 (Steinhart is fixed at 4
+	 * coefficients so the field is 0). custom->len counts individual
+	 * 3-byte entries, so pairs = len / 2.
+	 *
+	 * CUSTOM_ADDR: pair index from the start of the custom table region,
+	 * not a byte offset. Divide the byte offset by entry_size to get it.
+	 */
+	*chan_val |= LTC2983_CUSTOM_LEN(custom->is_steinhart ? 0 :
+					custom->len / 2 - 1);
+	*chan_val |= LTC2983_CUSTOM_ADDR(device->custom_addr_ptr / entry_size);
 
+	/*
+	 * Pack header + all table entries into one buffer and write in a single
+	 * SPI transaction.
+	 */
 	raw_array[0] = LTC2983_SPI_WRITE_BYTE;
-	for (i = 0; i < custom->len; i++, device->custom_addr_ptr += step) {
-		no_os_put_unaligned_be16(device->custom_addr_ptr,
-					 raw_array + 1);
-		no_os_put_unaligned_be24(custom->table[i], raw_array + 3);
-		ret = no_os_spi_write_and_read(device->comm_desc, raw_array,
-					       NO_OS_ARRAY_SIZE(raw_array));
-		if (ret)
-			return ret;
-	}
+	no_os_put_unaligned_be16(LTC2983_CUST_SENS_TBL_START_REG +
+				 device->custom_addr_ptr, raw_array + 1);
+	for (i = 0; i < custom->len; i++)
+		no_os_put_unaligned_be24(custom->table[i], raw_array + 3 + i * step);
 
-	return 0;
+	device->custom_addr_ptr += data_len;
+	return no_os_spi_write_and_read(device->comm_desc, raw_array,
+					3 + data_len);
 }
 
 /**
@@ -515,17 +611,34 @@ int ltc2983_rtd_assign_chan(struct ltc2983_desc *device,
 	int ret;
 
 	chan_val = LTC2983_CHAN_ASSIGN(rtd->r_sense_chan);
-	chan_val |= LTC2983_RTD_CFG(rtd->sensor_config);
-	chan_val |= LTC2983_RTD_EXC_CURRENT(rtd->excitation_current);
-	chan_val |= LTC2983_RTD_CURVE(rtd->rtd_curve);
+
+	if (device->has_copper_trace && sensor->type == LTC2983_RTD_CUSTOM) {
+		/* ADT7604 copper trace cfg bits 21:18 must always be 0b1001 */
+		chan_val |= LTC2983_RTD_CFG(0x9);
+		if (rtd->sub_ohm && rtd->custom) {
+			pr_err("sub-ohm copper trace cannot have a custom table\n");
+			return -EINVAL;
+		}
+		/* excitation required for >1Ω variant; forbidden for sub-ohm */
+		if (!rtd->sub_ohm)
+			chan_val |= LTC2983_RTD_EXC_CURRENT(rtd->excitation_current);
+	} else {
+		chan_val |= LTC2983_RTD_CFG(rtd->sensor_config);
+		chan_val |= LTC2983_RTD_EXC_CURRENT(rtd->excitation_current);
+		chan_val |= LTC2983_RTD_CURVE(rtd->rtd_curve);
+	}
 
 	if (rtd->custom) {
-
 		ret = __ltc2983_chan_custom_sensor_assign(device, rtd->custom,
 				&chan_val);
 		if (ret)
 			return ret;
 	}
+
+	/* sub-ohm variant: no excitation, no custom table (bits 17:0 = 0) */
+	if (rtd->sub_ohm)
+		chan_val &= ~NO_OS_GENMASK(17, 0);
+
 	return __ltc2983_chan_assign_common(device, sensor, chan_val);
 }
 
@@ -543,9 +656,15 @@ int ltc2983_thermistor_assign_chan(struct ltc2983_desc *device,
 	int ret;
 
 	chan_val = LTC2983_CHAN_ASSIGN(thermistor->r_sense_chan);
-	chan_val |= LTC2983_THERMISTOR_CFG(thermistor->sensor_config);
-	chan_val |=
-		LTC2983_THERMISTOR_EXC_CURRENT(thermistor->excitation_current);
+
+	if (device->has_copper_trace &&
+	    sensor->type == LTC2983_THERMISTOR_CUSTOM)
+		/* ADT7604 leak detector: cfg bits 21:19 hardcoded to 0b001 */
+		chan_val |= LTC2983_THERMISTOR_CFG(1);
+	else
+		chan_val |= LTC2983_THERMISTOR_CFG(thermistor->sensor_config);
+
+	chan_val |= LTC2983_THERMISTOR_EXC_CURRENT(thermistor->excitation_current);
 
 	if (thermistor->custom) {
 

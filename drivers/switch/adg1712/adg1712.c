@@ -1,6 +1,6 @@
 /***************************************************************************//**
  *   @file   adg1712.c
- *   @brief  Implementation of ADG1712 Driver.
+ *   @brief  Implementation of ADG1712/ADG2712 Driver.
  *   @author Antoniu Miclaus (antoniu.miclaus@analog.com)
 ********************************************************************************
  * Copyright 2025(c) Analog Devices, Inc.
@@ -48,7 +48,6 @@ int adg1712_set_switch_state(struct adg1712_dev *dev,
 			     bool enable)
 {
 	struct no_os_gpio_desc *gpio;
-	uint8_t value;
 
 	if (!dev)
 		return -EINVAL;
@@ -173,6 +172,8 @@ int adg1712_init(struct adg1712_dev **device,
 	ret = no_os_gpio_direction_output(dev->gpio_in4, NO_OS_GPIO_LOW);
 	if (ret)
 		goto error_gpio4;
+
+	dev->chip_id = init_param->chip_id;
 
 	*device = dev;
 

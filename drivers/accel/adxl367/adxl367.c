@@ -1232,7 +1232,7 @@ int adxl367_int_map(struct adxl367_dev *dev, struct adxl367_int_map *map,
 		  map->data_ready;
 
 	return adxl367_set_register_value(dev, reg_val,
-					  pin == 1 ? ADXL367_REG_INTMAP1_LWR : ADXL367_REG_INTMAP1_LWR);
+					  pin == 1 ? ADXL367_REG_INTMAP1_LWR : ADXL367_REG_INTMAP2_LWR);
 }
 
 /***************************************************************************//**
@@ -1390,7 +1390,7 @@ int adxl367_reference_readback(struct adxl367_dev *dev,
 			       reg) != ADXL367_REFERENCED_INACTIVITY_ENABLE)
 		return -ENOTSUP;
 	if (!inactivity
-	    && no_os_field_get(ADXL367_ACT_INACT_CTL_INACT_EN_MSK,
+	    && no_os_field_get(ADXL367_ACT_INACT_CTL_ACT_EN_MSK,
 			       reg) != ADXL367_REFERENCED_ACTIVITY_ENABLE)
 		return -ENOTSUP;
 

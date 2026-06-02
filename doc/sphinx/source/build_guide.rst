@@ -17,13 +17,26 @@ If however you've already cloned no-OS without the **--recursive** flag, you may
         git submodule update --recursive --init
 
 
+XILINX
+======
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_xilinx
+
+INTEL
+=====
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_intel
+
 MAXIM
 ======
 .. toctree::
    :maxdepth: 1
-   
-   build_guides/build_maxim
 
+   build_guides/build_maxim
 
 FTD2XX
 ======
@@ -45,4 +58,46 @@ MAC
     :maxdepth: 1
 
     build_guides/build_mac
+
+STM32
+=====
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_stm32
+
+MBED
+====
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_mbed
+
+ADUCM3029
+=========
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_aducm3029
+
+RASPBERRY PI PICO
+=================
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_pico
+
+LATTICE PROPEL SDK
+===================
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_lattice
+
+WSL2
+====
+.. toctree::
+    :maxdepth: 1
+
+    build_guides/build_wsl
 

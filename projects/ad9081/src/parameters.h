@@ -37,11 +37,33 @@
 
 #define UART_BAUDRATE 115200
 
+/*This flag is for configuring leader/follower boards in Multi-Chip Sync
+ * MXFE_SYNC_LEADER 0 - Follower
+ * MXFE_SYNC_LEADER 1 - Leader
+ * If not in MCS_CONTINUOUS_SYSREF, it can be ignored */
+#define MXFE_SYNC_LEADER 0
+
 #ifdef XPS_BOARD_ZCU102
 #define GPIO_OFFSET		78
+#define PHY_SYNC		(GPIO_OFFSET + 31)
+#if (MXFE_SYNC_LEADER == 1)
+#define LF_GPIO_IN              (GPIO_OFFSET + 29)
+#define LF_GPIO_OUT              (GPIO_OFFSET + 30)
+#else
+#define LF_GPIO_IN              (GPIO_OFFSET + 30)
+#define LF_GPIO_OUT              (GPIO_OFFSET + 29)
+#endif
 #else
 #ifdef PLATFORM_ZYNQ
 #define GPIO_OFFSET		54
+#define PHY_SYNC		(GPIO_OFFSET + 12)
+#if (MXFE_SYNC_LEADER == 1)
+#define LF_GPIO_IN              (GPIO_OFFSET + 11)
+#define LF_GPIO_OUT              (GPIO_OFFSET + 13)
+#else
+#define LF_GPIO_IN              (GPIO_OFFSET + 13)
+#define LF_GPIO_OUT              (GPIO_OFFSET + 11)
+#endif
 #else
 #define GPIO_OFFSET		0
 #endif
@@ -89,7 +111,7 @@
 #define PHY_SPI_DEVICE_ID	XPAR_PS7_SPI_0_DEVICE_ID
 #define CLK_SPI_DEVICE_ID	XPAR_PS7_SPI_1_DEVICE_ID
 #define UART_DEVICE_ID		XPAR_XUARTPS_0_DEVICE_ID
-#define UART_IRQ_ID		XPAR_XUARTPS_0_INTR
+#define UART_IRQ_ID		XPAR_XUARTPS_1_INTR
 #define CLK_CS			0
 #else
 #error Unsupported platform.

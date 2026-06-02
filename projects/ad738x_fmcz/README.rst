@@ -293,3 +293,82 @@ Build Command
    make run
    # to debug the code
    make debug
+
+Lattice Platform
+~~~~~~~~~~~~~~~~
+
+Hardware Used
+^^^^^^^^^^^^^
+
+- :adi:`EVAL-AD7380FMCZ` or :adi:`EVAL-AD7381FMCZ`
+- LFCPNX-EVN
+
+Connections
+^^^^^^^^^^^
+
+The EVAL-AD7380FMCZ has a standard FMC connector, which can be directly
+plugged into the FMC slot on the LFCPNX-EVN carrier board.
+
++-----------------+-----------------------------------+------------------+
+| **Signal**      | **EVAL-AD7380FMCZ** FMC-LPC       | **LFCPNX-EVN**   |
+|                 | Connector (P7)                    | FMC-LPC          |
+|                 |                                   | Connector        |
++-----------------+-----------------------------------+------------------+
+| **MOSI**        | SPI MOSI (Digital Pin)            | SPI MOSI         |
++-----------------+-----------------------------------+------------------+
+| **MISO**        | SPI MISO (Digital Pin)            | SPI MISO         |
++-----------------+-----------------------------------+------------------+
+| **SCK**         | SPI SCK (Digital Pin)             | SPI SCK          |
++-----------------+-----------------------------------+------------------+
+| **CS**          | SPI CS (Digital Pin)              | SPI CS           |
++-----------------+-----------------------------------+------------------+
+
+Build Command
+^^^^^^^^^^^^^
+
+The reference HDL project for the Lattice platform (``LFCPNX-EVN``) is available
+at: `hdl/projects/ad738x_fmc/lfcpnx
+<https://github.com/analogdevicesinc/hdl/tree/main/projects/ad738x_fmc/lfcpnx>`__
+
+The Propel SDK command-line tools and the bundled RISC-V GCC toolchain
+must be on your ``PATH``:
+
+.. code-block:: bash
+
+   export PATH="<your_path>/lscc/propel/<version>/sdk/tools/bin":$PATH
+   export PATH="<your_path>/lscc/propel/<version>/sdk/riscv-none-embed-gcc/bin":$PATH
+   export PATH="<your_path>/lscc/propel/<version>/sdk/openocd/bin":$PATH
+   # On Windows Cygwin, the Lattice programmer binary path:
+   export PATH="/<your_path>/lscc/programmer/radiant/2025.2/bin/nt64":$PATH
+   # On Linux, the Lattice programmer binary path:
+   export PATH="/<your_path>/lscc/programmer/radiant/2025.2/bin/lin64":$PATH
+
+The hardware package exported by Propel Builder can be provided as an ``sge``
+directory or an ``sge.zip`` file. Place it in the project root, or pass its
+location with ``HARDWARE=/path/to/your/sge``.
+
+.. code-block:: bash
+
+   # copy the hardware package folder or zip file to the project directory
+   cp -r <your_path>/sge .
+   # optionally copy the bitstream file to the project directory
+   cp <your_path>/*.bit .
+   # to delete current build
+   make reset
+   # to build the project
+   make PLATFORM=lattice
+   # to flash and run the code (requires openocd)
+   make run
+
+.. note::
+   In default when using ``make run``, if the bitstream (``*.bit``) is available
+   in the project root, it is automatically downloaded to the FPGA before
+   loading the ELF by OpenOCD; Otherwise use `Lattice Radiant Programmer
+   <https://www.latticesemi.com/en/Products/DesignSoftwareAndIP/FPGAandLDS/Radiant>`__
+   GUI or command line to load the ``*.bit`` bitstream to the ``LFCPNX-EVN``
+   board before running the software. You can also disable the automatic
+   bitstream download by:
+
+   .. code-block:: bash
+
+      make run BITSTREAM=n
