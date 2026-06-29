@@ -37,3 +37,4 @@ __pycache__/
 
 local_variables.mk
 *generated*
+.github/.claude/settings.json
