@@ -116,14 +116,6 @@ This is a simple example which initializes the adis1650x selected device and
 performs angular velocity, acceleration and temperature readings in a while loop
 with a period of 1s. The data is printed on the serial interface.
 
-In order to build the IIO project make sure you have the following configuration in the
-`Makefile <https://github.com/analogdevicesinc/no-OS/tree/main/projects/eval-adis1650x/Makefile>`_
-
-.. code-block:: bash
-
-        # Select the example you want to enable
-        EXAMPLE = basic_example
-
 IIO example
 ^^^^^^^^^^^
 
@@ -153,14 +145,6 @@ When DATA_READY pin transitions from low to high, new data is available and will
 be read based on is_synchronous flag setting used in adis_iio_trigger_desc.
 If the flag is set to true, the data will be read immediately, in the interrupt context.
 If the flag is set to false, the data will be read from application context. In this case some samples might be missed.
-
-In order to build the IIO project make sure you have the following configuration in the
-`Makefile <https://github.com/analogdevicesinc/no-OS/tree/main/projects/eval-adis1650x/Makefile>`_
-
-.. code-block:: bash
-
-        # Select the example you want to enable
-        EXAMPLE = iio_trigger_example
 
 No-OS Supported Platforms
 -------------------------
@@ -203,14 +187,23 @@ STM32 Platform
 
 .. code-block:: bash
 
-        # to delete current build
-        make reset
-        # to build the project
-        make PLATFORM=stm32
-        # to flash the code
-        make run
-        # to debug the code
-        make debug
+	# set the path to STM32CubeMX and STM32CubeIDE (only if they are not
+	# in a default install location)
+	export STM32CUBEMX=</path/to/stm32cubemx>
+	export STM32CUBEIDE=</path/to/stm32cubeide>
+
+	cd no-OS
+
+	# build the project (basic example on the SDP-K1 board)
+	python tools/scripts/no_os_build.py build \
+		--project eval-adis1650x --variant basic --board sdp-ck1z
+
+	# build and flash (requires a connected debug probe)
+	python tools/scripts/no_os_build.py build \
+		--project eval-adis1650x --variant basic --board sdp-ck1z \
+		--probe openocd --flash
+
+Available variants: ``basic``, ``iio_trigger``. Replace ``--variant`` accordingly.
 
 Maxim Platform
 ^^^^^^^^^^^^^^
@@ -249,14 +242,21 @@ Maxim Platform
 
 .. code-block:: bash
 
-        # to delete current build
-        make reset
-        # to build the project
-        make PLATFORM=maxim TARGET=max78000
-        # to flash the code
-        make run
-        # to debug the code
-        make debug
+	# point at the Maxim SDK libraries (only if not auto-detected)
+	export MAXIM_LIBRARIES=</path/to/MaximSDK/Libraries>
+
+	cd no-OS
+
+	# build the project (basic example on MAX78000)
+	python tools/scripts/no_os_build.py build \
+		--project eval-adis1650x --variant basic --board max78000fthr
+
+	# build and flash (requires a connected debug probe)
+	python tools/scripts/no_os_build.py build \
+		--project eval-adis1650x --variant basic --board max78000fthr \
+		--probe openocd --flash
+
+Available variants: ``basic``, ``iio_trigger``. Replace ``--variant`` accordingly.
 
 Pico Platform
 ^^^^^^^^^^^^^
@@ -310,11 +310,15 @@ The following table shows how the connection between ADALM-UARTJTAG and Raspberr
 
 .. code-block:: bash
 
-        # to delete current build
-        make reset
-        # to build the project
-        make PLATFORM=pico
-        # to flash the code
-        make run
-        # to debug the code
-        make debug
+	cd no-OS
+
+	# build the project (basic example on the Raspberry Pi Pico)
+	python tools/scripts/no_os_build.py build \
+		--project eval-adis1650x --variant basic --board rpi-pico
+
+	# build and flash (requires a connected debug probe)
+	python tools/scripts/no_os_build.py build \
+		--project eval-adis1650x --variant basic --board rpi-pico \
+		--probe openocd --flash
+
+Available variants: ``basic``, ``iio_trigger``. Replace ``--variant`` accordingly.

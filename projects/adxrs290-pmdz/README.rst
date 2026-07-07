@@ -261,28 +261,23 @@ a brief description of the pin function.
 Build Command
 ^^^^^^^^^^^^^
 
-Below is a consolidated set of commands to clean, build, flash, and
-debug the ADXRS290-PMDZ project on a Maxim platform:
-
 .. code-block:: bash
 
-    # Clean the project (from the project root: no-OS/projects/adxrs290-pmdz)                                                                                                        
-    make clean                                                                                                                                                                       
-                                                                                                                                                                                     
-    # Full project build for the MAXIM target (uses settings from builds.json)                                                                                                       
-    make TARGET=maxim                                                                                                                                                                
-                                                                                                                                                                                     
-    # Build the IIO example application:                                                                                                                                             
-    cd no-OS/projects/adxrs290-pmdz/src/examples/iio_example && make -f example.mk                                                                                                   
-                                                                                                                                                                                     
-    # Build the IIO Timer Trigger example:                                                                                                                                           
-    cd no-OS/projects/adxrs290-pmdz/src/examples/iio_timer_trigger_example && make -f example.mk                                                                                     
-                                                                                                                                                                                     
-    # Flash the compiled binary to the MAXIM hardware                                                                                                                                
-    make flash TARGET=maxim                                                                                                                                                          
-                                                                                                                                                                                     
-    # Start a debug session with debugging symbols for the MAXIM target                                                                                                              
-    make debug TARGET=maxim 
+	# point at the Maxim SDK libraries (only if not auto-detected)
+	export MAXIM_LIBRARIES=</path/to/MaximSDK/Libraries>
+
+	cd no-OS
+
+	# build the project (iio example on MAX32655)
+	python tools/scripts/no_os_build.py build \
+		--project adxrs290-pmdz --variant iio --board max32655fthr
+
+	# build and flash (requires a connected debug probe)
+	python tools/scripts/no_os_build.py build \
+		--project adxrs290-pmdz --variant iio --board max32655fthr \
+		--probe openocd --flash
+
+Available variants: ``iio``, ``iio_trigger``. Replace ``--variant`` accordingly.
 
 PICO Platform
 ~~~~~~~~~~~~~
@@ -328,38 +323,20 @@ wiring the boards.
 Build Command
 ^^^^^^^^^^^^^
 
-Below is a single code block containing the primary commands for
-cleaning, building, flashing, and debugging the ADXRS290 project on the
-PICO platform:
-
 .. code-block:: bash
 
-    # Navigate to the project directory (if not already there)                                                                                                                       
-    cd no-OS/projects/adxrs290-pmdz/src/examples/iio_example                                                                                                                                                                                                                                                    
-                                                                                                                                                                                     
-    # Set the target platform to PICO                                                                                                                                                 
-    make TARGET=pico
+	cd no-OS
 
-   # Clean: remove previous build artifacts                                                                                                                                         
-    make clean PLATFORM=pico                                                                                                                                                         
-                                                                                                                                                                                     
-    # Build:                                                                                                                                                                         
-    #   - Default full build (using 'all' target or simply 'make')                                                                                                                   
-    make all PLATFORM=pico                                                                                                                                                           
-                                                                                                                                                                                     
-    # Build specific IIO examples:                                                                                                                                                   
-    #   IIO example build                                                                                                                                                            
-    make iio_example TARGET=pico                                                                                                                                                     
-    #   IIO trigger example build                                                                                                                                                    
-    make iio_trigger_example TARGET=pico                                                                                                                                             
-    #   IIO timer trigger example build                                                                                                                                              
-    make iio_timer_trigger TARGET=pico                                                                                                                                               
-                                                                                                                                                                                     
-    # Flash: program the firmware onto the PICO board                                                                                                                                
-    make flash PLATFORM=pico                                                                                                                                                         
-                                                                                                                                                                                     
-    # Debug: launch a GDB debugging session for troubleshooting                                                                                                                      
-    make debug PLATFORM=pico  
+	# build the project (iio example on the Raspberry Pi Pico)
+	python tools/scripts/no_os_build.py build \
+		--project adxrs290-pmdz --variant iio --board rpi-pico
+
+	# build and flash (requires a connected debug probe)
+	python tools/scripts/no_os_build.py build \
+		--project adxrs290-pmdz --variant iio --board rpi-pico \
+		--probe openocd --flash
+
+Available variants: ``iio``, ``iio_trigger``, ``iio_timer_trigger``. Replace ``--variant`` accordingly.
 
 STM32 Platform
 ~~~~~~~~~~~~~~~
@@ -412,20 +389,18 @@ Build Command
 
 .. code-block:: bash
 
-    # Navigate to the project directory (if not already there)                                                                                                                       
-    cd no-OS/projects/adxrs290-pmdz/src/examples/iio_example                                                                                                                                                                                                                                                    
-                                                                                                                                                                                     
-    # Set the target platform to STM32                                                                                                                                                
-    export TARGET=stm32
+	# set the path to STM32CubeMX and STM32CubeIDE (only if they are not
+	# in a default install location)
+	export STM32CUBEMX=</path/to/stm32cubemx>
+	export STM32CUBEIDE=</path/to/stm32cubeide>
 
-   # Clean previous build artifacts                                                                                                                                                 
-    make clean                                                                                                                                                                       
-                                                                                                                                                                                     
-    # Build the project for the STM32 platform (compiles both core and example applications)                                                                                         
-    make all                                                                                                                                                                         
-                                                                                                                                                                                     
-    # Flash the compiled firmware onto the STM32F469NIH6 microcontroller                                                                                                             
-    make flash                                                                                                                                                                       
-                                                                                                                                                                                     
-    # Launch the debugging environment for development and troubleshooting                                                                                                           
-    make debug    
+	cd no-OS
+
+	# build the project (iio example on the SDP-K1 board)
+	python tools/scripts/no_os_build.py build \
+		--project adxrs290-pmdz --variant iio --board sdp-ck1z
+
+	# build and flash (requires a connected debug probe)
+	python tools/scripts/no_os_build.py build \
+		--project adxrs290-pmdz --variant iio --board sdp-ck1z \
+		--probe openocd --flash

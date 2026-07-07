@@ -11,6 +11,20 @@ import re
 # This file can be downloaded from the wiki-scripts repository
 # https://raw.githubusercontent.com/analogdevicesinc/wiki-scripts/refs/heads/main/utils/cloudsmith_utils/cloudsmith_helper.py
 from cloudsmith_helper import *
+from pathlib import Path
+# Discovery helpers for the CMake build system. no_os_build.py guards its CLI
+# under "if __name__ == '__main__':", so importing it has no side effects.
+from no_os_build import (
+	load_presets,
+	discover_all_combinations,
+	filter_combinations,
+	combo_build_dir,
+)
+
+# Platforms handled by the CMake build system (the only ones with board
+# presets under board_configs/). A project's builds.json is expected to carry
+# only the platforms NOT in this set; its CMake combos cover these.
+CMAKE_PLATFORMS = {'maxim', 'stm32', 'pico'}
 
 TGREEN =  '\033[32m' # Green Text	
 TBLUE =  '\033[34m' # Green Text	
@@ -69,7 +83,11 @@ def log_success(msg):
 
 DEFAULT_LOG_FILE = 'log.txt'
 log_file = DEFAULT_LOG_FILE
-create_dir_cmd = "test -d {0} || mkdir -p {0}"
+
+def ensure_dir(path):
+	# Silent mkdir -p; not routed through run_cmd so it neither logs a bogus
+	# build step nor leaks the "test -d ... ||" text to stdout.
+	os.makedirs(path, exist_ok=True)
 
 def shell_source(script):
 	"""
@@ -195,16 +213,16 @@ def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch):
 			exit()
 
 	builds_dir = _builds_dir + '_' + hdl_branch
-	run_cmd(create_dir_cmd.format(builds_dir))
+	ensure_dir(builds_dir)
 	if SKIP_DOWNLOAD == 1:
 		return (builds_dir, [])
 	hardwares = os.path.join(builds_dir, HW_DIR_NAME)
-	run_cmd(create_dir_cmd.format(hardwares))
+	ensure_dir(hardwares)
 	server_full_path = server_base_path + hdl_branch_path
 	if (_platform is None or _platform == 'xilinx'):
 		blacklist = process_blacklist()
 		new_hardwares = os.path.join(builds_dir, NEW_HW_DIR_NAME)
-		run_cmd(create_dir_cmd.format(new_hardwares))
+		ensure_dir(new_hardwares)
 		err = os.system("python3 {}/tools/scripts/download_files.py {} {} {} \"{}\""
 				  .format(noos, noos, builds_dir, server_full_path, blacklist))
 		if err != 0:
@@ -267,12 +285,6 @@ class BuildConfig:
 		if (platform == 'aducm3029' or platform == 'stm32' or platform == 'maxim'):
 			self.export_elf_file = self.export_file
 			self.export_file = self.export_file.replace('.elf', '.hex')
-		if (platform == 'pico'):
-			self.export_elf_file = self.export_file
-			self.export_file = self.export_file.replace('.elf', '.uf2')
-		if (platform == 'mbed'):
-			self.export_elf_file = self.export_file
-			self.export_file = self.export_file.replace('.elf', '.bin')
 		if (platform == 'xilinx'):
 			self.export_boot_bin = os.path.join(self.build_dir, "output_boot_bin/BOOT.BIN")
 			self.export_archive = os.path.join(self.build_dir, "bootgen_sysfiles.tar.gz")
@@ -336,12 +348,127 @@ class BuildConfig:
 		log_file = DEFAULT_LOG_FILE
 
 		return 0
+
+def build_cmake_project(noos, project, _platform, _build_name, export_dir,
+			log_dir, cmake_builds_dir):
+	"""Build the CMake/Kconfig (Maxim/STM32) side of a project.
+
+	Discovers the project's project/variant/board combinations from the board
+	presets and per-project *.conf files (reusing no_os_build.py for discovery)
+	and builds each by invoking no_os_build.py as a subprocess, so the CI console
+	shows the invocation while its output is redirected into the per-combination
+	log.
+
+	Returns 1 if all combinations succeeded, 0 if any failed, or None if there
+	were no combinations for the requested platform (so the caller can tell a
+	genuine no-op from a real build and avoid emitting a misleading status).
+	"""
+	global ERR, log_file
+
+	presets = load_presets(Path(noos))
+	combos = discover_all_combinations(Path(noos), presets)
+	combos = filter_combinations(combos, project=project)
+	# Only the CMake platforms are built here; the rest live in builds.json.
+	# Honor the platform / build-name (variant) filters the CLI already supports.
+	combos = [c for c in combos if c['platform'] in CMAKE_PLATFORMS]
+	if _platform is not None:
+		combos = [c for c in combos if c['platform'] == _platform]
+	if _build_name is not None:
+		combos = [c for c in combos if c['variant'] == _build_name]
+
+	if not combos:
+		return None
+
+	project_export = os.path.join(export_dir, project)
+	ensure_dir(project_export)
+
+	build_dir_base = Path(cmake_builds_dir)
+	ok = 1
+	for combo in combos:
+		variant = combo['variant']
+		board = combo['board']
+		platform = combo['platform']
+
+		name = "%s-%s-%s" % (project, variant, board)
+		build_dir = combo_build_dir(build_dir_base, combo)
+		out_dir = build_dir / 'build'
+		elf = out_dir / ('%s.elf' % project)
+
+		log("Building %10s (%8s) -- %s -- %s" % (
+			to_blue(project), to_blue(variant), to_blue(platform), to_blue(board)))
+
+		# Bring in the platform SDK environment (MAXIM_LIBRARIES, STM32CUBEMX, ...).
+		env = dict(os.environ)
+		shell_source(environment_path_files + platform + "_environment.sh")
+
+		# The final link + .hex/.bin generation runs as a custom command whose
+		# failure does NOT report as a non-zero exit. So the .elf is the source
+		# of truth: remove any stale one, build, then require it.
+		if elf.is_file():
+			elf.unlink()
+
+		# Delegate the actual build to no_os_build.py. Suppress its
+		# spinner/summary (not useful on CI); the real cmake output lands in
+		# build.log inside the build dir and is copied into dst_log below.
+		dst_log = os.path.join(log_dir, '%s_%s_%s_%s.txt' % (project, platform, variant, board))
+		jobs = int(multiprocessing.cpu_count() / 2) or 1
+		# Pass an absolute --build-dir: no_os_build anchors a relative one to the
+		# repo root, which would not match the build_dir we clean/probe here.
+		build_cmd = ("python3 %s/tools/scripts/no_os_build.py build"
+			     " --project %s --variant %s --board %s"
+			     " --build-dir %s --jobs %d --probe openocd --fresh"
+			     % (noos, project, variant, board,
+				os.path.abspath(build_dir_base), jobs))
+		log(build_cmd)
+		sys.stdout.flush()
+		err = os.system(build_cmd + ' > /dev/null 2>&1')
+		success = err == 0
+
+		os.environ.clear()
+		os.environ.update(env)
+
+		# Copy the cmake configure+build log (written by no_os_build into the
+		# build dir) into the per-combo CI log artifact.
+		cmake_log = build_dir / 'build.log'
+		if cmake_log.is_file():
+			import shutil
+			shutil.copy2(str(cmake_log), dst_log)
+		else:
+			open(dst_log, 'w').close()
+
+		if not success:
+			log_err("ERROR")
+			log("See log %s" % dst_log)
+			ERR = 1
+
+		# The final link + .hex/.bin runs as a cmake custom command whose failure
+		# does NOT propagate as a non-zero exit. Check for the .elf explicitly.
+		if success and not elf.is_file():
+			log_err("ERROR")
+			log("See log %s -- no .elf produced (link likely failed)" % dst_log)
+			ERR = 1
+			success = False
+
+		if not success:
+			ERR = 1
+			ok = 0
+			continue
+
+		for ext in ('elf', 'hex', 'bin'):
+			src = out_dir / ('%s.%s' % (project, ext))
+			if src.is_file():
+				run_cmd("cp %s %s" % (src, os.path.join(project_export, '%s.%s' % (name, ext))))
+
+		log_success("DONE")
+
+	return ok
+
 def main():
 	(noos, export_dir, log_dir, _project,
 	 _platform, _build_name, _builds_dir, _hw, hdl_branch) = parse_input()
 	projets = os.path.join(noos,'projects')
-	run_cmd(create_dir_cmd.format(export_dir))
-	run_cmd(create_dir_cmd.format(log_dir))
+	ensure_dir(export_dir)
+	ensure_dir(log_dir)
 	(builds_dir, blacklist) = configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch)
 	for project in os.listdir(projets):
 		binary_created = False
@@ -350,12 +477,35 @@ def main():
 				continue
 		project_dir = os.path.join(projets, project)
 		build_file = os.path.join(project_dir, 'builds.json')
-		if not os.path.isfile(build_file):
+		# A project can have a CMakeLists.txt (Maxim/STM32 via CMake), a
+		# builds.json (other platforms via legacy make), or both. The two are
+		# detected independently rather than keying solely on builds.json.
+		has_cmake = os.path.isfile(os.path.join(project_dir, 'CMakeLists.txt'))
+		has_builds = os.path.isfile(build_file)
+		if not has_cmake and not has_builds:
+			continue
+
+		all_status = os.path.join(log_dir, 'all_builds.txt')
+
+		# CMake/Kconfig side: the Maxim/STM32 combos discovered from the board
+		# presets. build_cmake_project filters to CMAKE_PLATFORMS internally and
+		# returns None when the current -platform job has nothing to build here.
+		if has_cmake:
+			cmake_builds_dir = builds_dir + '_cmake'
+			ensure_dir(cmake_builds_dir)
+			cmake_ok = build_cmake_project(noos, project, _platform, _build_name,
+						 export_dir, log_dir, cmake_builds_dir)
+			if cmake_ok is not None:
+				status = 'OK' if cmake_ok == 1 else 'Fail'
+				os.system('echo Project %20s -- %s >> %s' % (project, status, all_status))
+
+		if not has_builds:
 			continue
 
 		fp = open(build_file)
 		configs = json.loads(fp.read())
 		ok = 1
+		legacy_ran = False
 		for (platform, config) in configs.items():
 			if _platform is not None:
 				if _platform != platform:
@@ -365,7 +515,7 @@ def main():
 					if _build_name != build_name:
 						continue
 				project_export = os.path.join(export_dir, project)
-				run_cmd(create_dir_cmd.format(project_export))
+				ensure_dir(project_export)
 				flags = params['flags']
 				if 'hardware' in params:
 					hardwares = params['hardware']
@@ -378,6 +528,7 @@ def main():
 							continue
 					if hardware in blacklist:
 						continue
+					legacy_ran = True
 					env = dict(os.environ)
 					shell_source(environment_path_files + platform + "_environment.sh")
 
@@ -400,7 +551,7 @@ def main():
 					else:
 						if platform == 'xilinx':
 							project_export_dir = os.path.join(project_export, new_build.boot_dir)
-							run_cmd(create_dir_cmd.format(project_export_dir))
+							ensure_dir(project_export_dir)
 							run_cmd("cp %s %s" %
 								(new_build.export_archive, project_export_dir))
 							file = open(os.path.join(new_build.build_dir,"tmp/arch.txt"))
@@ -417,11 +568,16 @@ def main():
 			
 		fp.close()
 
+		# Nothing in builds.json matched this -platform job (e.g. a hybrid
+		# project whose only match was the CMake side handled above): don't
+		# emit a misleading legacy status line.
+		if not legacy_ran:
+			continue
+
 		if ok == 1:
 			status = 'OK'
 		else:
 			status = 'Fail'
-		all_status = os.path.join(log_dir, 'all_builds.txt')
 		os.system('echo Project %20s -- %s >> %s' % (project, status, all_status))
 		if binary_created:
 			cwd = os.getcwd()
