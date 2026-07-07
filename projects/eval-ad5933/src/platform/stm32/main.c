@@ -42,6 +42,10 @@
 #include "register_example.h"
 #endif
 
+#ifdef BASIC_EXAMPLE
+#include "basic_example.h"
+#endif
+
 /*******************************************************************************
  * @brief Main function execution for STM32 platform.
  *
@@ -52,6 +56,12 @@ int main()
 	int ret = -ENODEV;
 
 	stm32_init();
+
+#ifdef BASIC_EXAMPLE
+	ret = basic_example_main();
+	if (ret)
+		goto error;
+#endif
 
 #ifdef REGISTER_EXAMPLE
 	ret = register_example_main();

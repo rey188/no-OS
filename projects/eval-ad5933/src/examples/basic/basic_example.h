@@ -1,6 +1,6 @@
 /*******************************************************************************
- *   @file   main.c
- *   @brief  Main file for Maxim platform of eval-ad5933 project.
+ *   @file   basic_example.h
+ *   @brief  Header file for the basic impedance sweep example of eval-ad5933.
  *   @author Reymond Olmedo (reymond.olmedo@analog.com)
 ********************************************************************************
  * Copyright 2024(c) Analog Devices, Inc.
@@ -30,49 +30,9 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *******************************************************************************/
-#include <errno.h>
-#include "platform_includes.h"
-#include "common_data.h"
+#ifndef __BASIC_EXAMPLE_H__
+#define __BASIC_EXAMPLE_H__
 
-#ifdef IIO_EXAMPLE
-#include "iio_example.h"
-#endif
+int basic_example_main(void);
 
-#ifdef REGISTER_EXAMPLE
-#include "register_example.h"
-#endif
-
-#ifdef BASIC_EXAMPLE
-#include "basic_example.h"
-#endif
-
-/*******************************************************************************
- * @brief Main function execution for Maxim platform.
- *
- * @return ret - Result of the enabled examples execution.
-*******************************************************************************/
-int main()
-{
-	int ret = -ENODEV;
-
-#ifdef BASIC_EXAMPLE
-	ret = basic_example_main();
-	if (ret)
-		goto error;
-#endif
-
-#ifdef REGISTER_EXAMPLE
-	ret = register_example_main();
-	if (ret)
-		goto error;
-#endif
-
-#ifdef IIO_EXAMPLE
-	ret = iio_example_main();
-	if (ret)
-		goto error;
-#endif
-
-error:
-	return ret;
-}
+#endif /* __BASIC_EXAMPLE_H__ */

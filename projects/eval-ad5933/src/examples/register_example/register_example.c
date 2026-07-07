@@ -109,6 +109,8 @@ int register_example_main(void)
 	struct no_os_uart_desc *uart_desc;
 	uint32_t readback;
 	uint32_t mask;
+	float temperature;
+	int temp_centi;
 	unsigned int i;
 	int failures = 0;
 	int ret;
@@ -157,6 +159,17 @@ int register_example_main(void)
 	readback = ad5933_get_register_value(ad5933_desc, AD5933_REG_STATUS, 1);
 	pr_info("\nSTATUS register (read-only)      addr 0x%02X read 0x%02lX\n",
 		AD5933_REG_STATUS, (unsigned long)readback);
+
+	/*
+	 * On-chip temperature sensor: triggers a MEASURE_TEMP conversion and
+	 * returns degrees Celsius. Printed as integer.fraction (in 1/100 C)
+	 * to avoid depending on floating-point printf support.
+	 */
+	temperature = ad5933_get_temperature(ad5933_desc);
+	temp_centi = (int)(temperature * 100.0f + (temperature < 0 ? -0.5f : 0.5f));
+	pr_info("On-chip temperature              addr 0x%02X read %d.%02d C\n",
+		AD5933_REG_TEMP_DATA, temp_centi / 100,
+		(temp_centi < 0 ? -temp_centi : temp_centi) % 100);
 
 	if (failures == 0)
 		pr_info("\nResult: ALL REGISTERS MATCHED - I2C readback OK.\n");

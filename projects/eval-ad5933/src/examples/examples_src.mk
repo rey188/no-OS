@@ -1,3 +1,9 @@
+ifeq (y,$(strip $(BASIC_EXAMPLE)))
+CFLAGS += -DBASIC_EXAMPLE
+SRCS += $(PROJECT)/src/examples/basic/basic_example.c
+INCS += $(PROJECT)/src/examples/basic/basic_example.h
+endif
+
 ifeq (y,$(strip $(REGISTER_EXAMPLE)))
 CFLAGS += -DREGISTER_EXAMPLE
 SRCS += $(PROJECT)/src/examples/register_example/register_example.c
